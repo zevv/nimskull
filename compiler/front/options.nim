@@ -978,8 +978,8 @@ proc isDefined*(conf: CurrentConf; symbol: string): bool =
     of "itanium": result = conf.target.targetCPU == cpuIa64
     of "x8664": result = conf.target.targetCPU == cpuAmd64
     of "posix", "unix":
-      result = conf.target.targetOS in {osLinux, osMorphos, osSkyos, osIrix, osPalmos,
-                            osQnx, osAtari, osAix,
+      result = conf.target.targetOS in {osLinux, osIrix,
+                            osQnx, osAix,
                             osHaiku, osVxWorks, osSolaris, osNetbsd,
                             osFreebsd, osOpenbsd, osDragonfly, osMacosx, osIos,
                             osAndroid, osNintendoSwitch, osFreeRTOS, osCrossos}

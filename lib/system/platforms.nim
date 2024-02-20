@@ -40,28 +40,22 @@ type
     loongarch64                ## LoongArch 64-bit processor
 
   OsPlatform* {.pure.} = enum ## the OS this program will run on.
-    none, dos, windows, os2, linux, morphos, skyos, solaris,
-    irix, netbsd, freebsd, openbsd, aix, palmos, qnx, amiga,
-    atari, netware, macos, macosx, haiku, android, js, standalone, nintendoswitch
+    none, dos, windows, os2, linux, solaris,
+    irix, netbsd, freebsd, openbsd, aix, qnx,
+    macos, macosx, haiku, android, js, standalone, nintendoswitch
 
 const
   targetOS* = when defined(windows): OsPlatform.windows
               elif defined(dos): OsPlatform.dos
               elif defined(os2): OsPlatform.os2
               elif defined(linux): OsPlatform.linux
-              elif defined(morphos): OsPlatform.morphos
-              elif defined(skyos): OsPlatform.skyos
               elif defined(solaris): OsPlatform.solaris
               elif defined(irix): OsPlatform.irix
               elif defined(netbsd): OsPlatform.netbsd
               elif defined(freebsd): OsPlatform.freebsd
               elif defined(openbsd): OsPlatform.openbsd
               elif defined(aix): OsPlatform.aix
-              elif defined(palmos): OsPlatform.palmos
               elif defined(qnx): OsPlatform.qnx
-              elif defined(amiga): OsPlatform.amiga
-              elif defined(atari): OsPlatform.atari
-              elif defined(netware): OsPlatform.netware
               elif defined(macosx): OsPlatform.macosx
               elif defined(macos): OsPlatform.macos
               elif defined(haiku): OsPlatform.haiku

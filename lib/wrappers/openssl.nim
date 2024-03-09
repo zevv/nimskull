@@ -13,8 +13,6 @@
 ## compatibility for OpenSSL versions above and below 1.1.0
 ##
 ## OpenSSL can also be statically linked using `--dynlibOverride:ssl` for OpenSSL >= 1.1.0.
-## If you want to statically link against OpenSSL 1.0.x, you now have to
-## define the `openssl10` symbol via `-d:openssl10`.
 ##
 ## Build and test examples:
 ##
@@ -52,16 +50,7 @@ when sslVersion != "":
     from std/posix import SocketHandle
 
 elif useWinVersion:
-  when defined(openssl10) or defined(nimOldDlls):
-    when defined(cpu64):
-      const
-        DLLSSLName* = "(ssleay32|ssleay64).dll"
-        DLLUtilName* = "(libeay32|libeay64).dll"
-    else:
-      const
-        DLLSSLName* = "ssleay32.dll"
-        DLLUtilName* = "libeay32.dll"
-  elif defined(cpu64):
+  when defined(cpu64):
     const
       DLLSSLName* = "(libssl-1_1-x64|ssleay64|libssl64).dll"
       DLLUtilName* = "(libcrypto-1_1-x64|libeay64).dll"
@@ -265,43 +254,30 @@ proc TLSv1_method*(): PSSL_METHOD{.cdecl, dynlib: DLLSSLName, importc.}
 when compileOption("dynlibOverride", "ssl") or defined(noOpenSSLHacks):
   # Static linking
 
-  when defined(openssl10):
-    proc SSL_library_init*(): cint {.cdecl, dynlib: DLLSSLName, importc, discardable.}
-    proc SSL_load_error_strings*() {.cdecl, dynlib: DLLSSLName, importc.}
-    proc SSLv23_method*(): PSSL_METHOD {.cdecl, dynlib: DLLSSLName, importc.}
-    proc SSLeay(): culong {.cdecl, dynlib: DLLUtilName, importc.}
+  proc OPENSSL_init_ssl*(opts: uint64, settings: uint8): cint {.cdecl, dynlib: DLLSSLName, importc, discardable.}
+  proc SSL_library_init*(): cint {.discardable.} =
+    ## Initialize SSL using OPENSSL_init_ssl for OpenSSL >= 1.1.0
+    return OPENSSL_init_ssl(0.uint64, 0.uint8)
 
-    proc getOpenSSLVersion*(): culong =
-      SSLeay()
-  else:
-    proc OPENSSL_init_ssl*(opts: uint64, settings: uint8): cint {.cdecl, dynlib: DLLSSLName, importc, discardable.}
-    proc SSL_library_init*(): cint {.discardable.} =
-      ## Initialize SSL using OPENSSL_init_ssl for OpenSSL >= 1.1.0
-      return OPENSSL_init_ssl(0.uint64, 0.uint8)
+  proc TLS_method*(): PSSL_METHOD {.cdecl, dynlib: DLLSSLName, importc.}
+  proc SSLv23_method*(): PSSL_METHOD =
+    TLS_method()
 
-    proc TLS_method*(): PSSL_METHOD {.cdecl, dynlib: DLLSSLName, importc.}
-    proc SSLv23_method*(): PSSL_METHOD =
-      TLS_method()
+  proc OpenSSL_version_num(): culong {.cdecl, dynlib: DLLUtilName, importc.}
 
-    proc OpenSSL_version_num(): culong {.cdecl, dynlib: DLLUtilName, importc.}
+  proc getOpenSSLVersion*(): culong =
+    ## Return OpenSSL version as unsigned long
+    OpenSSL_version_num()
 
-    proc getOpenSSLVersion*(): culong =
-      ## Return OpenSSL version as unsigned long
-      OpenSSL_version_num()
+  proc SSL_load_error_strings*() =
+    # TODO deprecate
+    ## Removed from OpenSSL 1.1.0
+    # This proc prevents breaking existing code calling SslLoadErrorStrings
+    # Static linking against OpenSSL < 1.1.0 is not supported
+    discard
 
-    proc SSL_load_error_strings*() =
-      ## Removed from OpenSSL 1.1.0
-      # This proc prevents breaking existing code calling SslLoadErrorStrings
-      # Static linking against OpenSSL < 1.1.0 is not supported
-      discard
-
-  when defined(libressl) or defined(openssl10):
-    proc SSL_state(ssl: SslPtr): cint {.cdecl, dynlib: DLLSSLName, importc.}
-    proc SSL_in_init*(ssl: SslPtr): cint {.inline.} =
-      SSl_state(ssl) and SSL_ST_INIT
-  else:
-    proc SSL_in_init*(ssl: SslPtr): cint {.cdecl, dynlib: DLLSSLName, importc.}
-    proc SSL_CTX_set_ciphersuites*(ctx: SslCtx, str: cstring): cint {.cdecl, dynlib: DLLSSLName, importc.}
+  proc SSL_in_init*(ssl: SslPtr): cint {.cdecl, dynlib: DLLSSLName, importc.}
+  proc SSL_CTX_set_ciphersuites*(ctx: SslCtx, str: cstring): cint {.cdecl, dynlib: DLLSSLName, importc.}
 
   template OpenSSL_add_all_algorithms*() = discard
 
@@ -799,7 +775,7 @@ when defined(nimHasStyleChecks):
 when not defined(nimDisableCertificateValidation) and not defined(windows):
 
   proc SSL_get_peer_certificate*(ssl: SslCtx): PX509{.cdecl, dynlib: DLLSSLName,
-      importc.}
+                                                      importc: "SSL_get_peer_certificate".}
 
   proc X509_get_subject_name*(a: PX509): PX509_NAME{.cdecl, dynlib: DLLSSLName, importc.}
 

@@ -798,8 +798,21 @@ when defined(nimHasStyleChecks):
 # On old openSSL version some of these symbols are not available
 when not defined(nimDisableCertificateValidation) and not defined(windows):
 
-  proc SSL_get_peer_certificate*(ssl: SslCtx): PX509{.cdecl, dynlib: DLLSSLName,
-      importc.}
+  # SSL_get_peer_certificate removed in 3.0
+  # SSL_get1_peer_certificate added in 3.0
+  when useOpenssl3:
+    proc SSL_get1_peer_certificate*(ssl: SslCtx): PX509 {.cdecl, dynlib: DLLSSLName, importc.}
+    proc SSL_get_peer_certificate*(ssl: SslCtx): PX509 =
+      SSL_get1_peer_certificate(ssl)
+  elif useStaticLink:
+    proc SSL_get_peer_certificate*(ssl: SslCtx): PX509 {.cdecl, dynlib: DLLSSLName, importc.}
+  else:
+    proc SSL_get_peer_certificate*(ssl: SslCtx): PX509 =
+      let methodSym = sslSymNullable("SSL_get_peer_certificate", "SSL_get1_peer_certificate")
+      if methodSym.isNil:
+        raise newException(LibraryError, "Could not load SSL_get_peer_certificate or SSL_get1_peer_certificate")
+      let method2Proc = cast[proc(ssl: SslCtx): PX509 {.cdecl, gcsafe, raises: [].}](methodSym)
+      return method2Proc(ssl)
 
   proc X509_get_subject_name*(a: PX509): PX509_NAME{.cdecl, dynlib: DLLSSLName, importc.}
 

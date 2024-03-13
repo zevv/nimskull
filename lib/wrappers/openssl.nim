@@ -22,6 +22,8 @@
 ##   ./bin/nim c -d:ssl -p:. -r tests/untestable/tssl.nim
 ##   ./bin/nim c -d:ssl -p:. --dynlibOverride:ssl --passl:-lcrypto --passl:-lssl -r tests/untestable/tssl.nim
 
+from std/strutils import startsWith
+
 when defined(nimHasStyleChecks):
   {.push styleChecks: off.}
 
@@ -34,6 +36,7 @@ const useWinVersion = defined(windows) or defined(nimdoc)
 # Having two different openSSL loaded version causes a crash.
 # Use this compile time define to force the openSSL version that your other dynamic libraries want.
 const sslVersion {.strdefine.}: string = ""
+const useOpenssl3* {.booldefine.} = sslVersion.startsWith('3')
 when sslVersion != "":
   when defined(macosx):
     const
@@ -262,7 +265,9 @@ proc TLSv1_method*(): PSSL_METHOD{.cdecl, dynlib: DLLSSLName, importc.}
 # and support SSLv3, TLSv1, TLSv1.1 and TLSv1.2
 # SSLv23_method(), SSLv23_server_method(), SSLv23_client_method() are removed in 1.1.0
 
-when compileOption("dynlibOverride", "ssl") or defined(noOpenSSLHacks):
+const useStaticLink = compileOption("dynlibOverride", "ssl") or defined(noOpenSSLHacks)
+
+when useStaticLink:
   # Static linking
 
   when defined(openssl10):
@@ -798,8 +803,21 @@ when defined(nimHasStyleChecks):
 # On old openSSL version some of these symbols are not available
 when not defined(nimDisableCertificateValidation) and not defined(windows):
 
-  proc SSL_get_peer_certificate*(ssl: SslCtx): PX509{.cdecl, dynlib: DLLSSLName,
-      importc.}
+  # SSL_get_peer_certificate removed in 3.0
+  # SSL_get1_peer_certificate added in 3.0
+  when useOpenssl3:
+    proc SSL_get1_peer_certificate*(ssl: SslCtx): PX509 {.cdecl, dynlib: DLLSSLName, importc.}
+    proc SSL_get_peer_certificate*(ssl: SslCtx): PX509 =
+      SSL_get1_peer_certificate(ssl)
+  elif useStaticLink:
+    proc SSL_get_peer_certificate*(ssl: SslCtx): PX509 {.cdecl, dynlib: DLLSSLName, importc.}
+  else:
+    proc SSL_get_peer_certificate*(ssl: SslCtx): PX509 =
+      let methodSym = sslSymNullable("SSL_get_peer_certificate", "SSL_get1_peer_certificate")
+      if methodSym.isNil:
+        raise newException(LibraryError, "Could not load SSL_get_peer_certificate or SSL_get1_peer_certificate")
+      let method2Proc = cast[proc(ssl: SslCtx): PX509 {.cdecl, gcsafe, tags: [].}](methodSym)
+      return method2Proc(ssl)
 
   proc X509_get_subject_name*(a: PX509): PX509_NAME{.cdecl, dynlib: DLLSSLName, importc.}
 
